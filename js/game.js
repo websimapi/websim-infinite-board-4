@@ -17,6 +17,7 @@ export class Game {
         this.moveDuration = 0;     // seconds needed for current move
         this.moveElapsed = 0;      // seconds elapsed in current move
         this.clock = new THREE.Clock(); // for time-based movement
+        this.lastLogicalPos = new THREE.Vector3(); // track last logical position for per-frame distance
 
         // Queued multi-step path (list of remaining nodes to visit)
         this.pathQueue = [];
@@ -85,6 +86,7 @@ export class Game {
 
         this.graphics.createPlayer(new THREE.Vector3(this.currentNode.x, this.currentNode.y, this.currentNode.z));
         this.graphics.updateCamera(new THREE.Vector3(this.currentNode.x, this.currentNode.y, this.currentNode.z));
+        this.lastLogicalPos.set(this.currentNode.x, this.currentNode.y, this.currentNode.z);
         
         this.checkChunkLoad();
 
@@ -359,9 +361,9 @@ export class Game {
         // Real time walking duration
         this.moveDuration = Math.max(0.5, baseTime + ascentTime); 
         
-        // Accumulate 3D distance for steps (meters)
-        const segmentDistance = this.startMovePos.distanceTo(this.targetMovePos);
-        this.distanceMeters += segmentDistance;
+        // Accumulate 3D distance for steps (meters) in real time in animate()
+        // const segmentDistance = this.startMovePos.distanceTo(this.targetMovePos);
+        // this.distanceMeters += segmentDistance;
 
         this.currentNode = targetNode;
         this.score++;
@@ -406,6 +408,7 @@ export class Game {
         const delta = this.clock.getDelta();
         
         let logicalPos = new THREE.Vector3();
+        const prevPos = this.lastLogicalPos.clone();
 
         if (this.isMoving) {
             // Time-based movement for consistent walking speed
@@ -425,8 +428,6 @@ export class Game {
                     const nextNode = this.pathQueue.shift();
                     if (nextNode) {
                         this.startMove(nextNode);
-                        // If starting new move immediately, update logicalPos to start
-                        logicalPos.copy(this.startMovePos);
                     }
                 } else {
                     // No more steps, clear active path glow
@@ -446,6 +447,14 @@ export class Game {
              }
         }
         
+        // Per-frame distance accumulation for real-time steps display
+        const frameDist = logicalPos.distanceTo(prevPos);
+        if (frameDist > 0) {
+            this.distanceMeters += frameDist;
+            this.updateScoreUI();
+        }
+        this.lastLogicalPos.copy(logicalPos);
+
         this.graphics.updatePlayerPosition(logicalPos);
         
         const camTarget = this.graphics.playerMesh.position;
